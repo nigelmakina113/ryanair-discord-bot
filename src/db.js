@@ -1,8 +1,8 @@
 const Database = require("better-sqlite3");
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
 
-const dataDir = path.join(__dirname, "data");
+const dataDir = path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new Database(path.join(dataDir, "bot.db"));
@@ -43,6 +43,16 @@ CREATE TABLE IF NOT EXISTS passengers (
   UNIQUE(flight_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS checkins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  flight_id INTEGER NOT NULL,
+  user_id TEXT NOT NULL,
+  seat TEXT,
+  boarded INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(flight_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS crew_assignments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   flight_id INTEGER NOT NULL,
@@ -72,6 +82,15 @@ CREATE TABLE IF NOT EXISTS staff_profiles (
   loa_end_iso TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS aircraft (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  aircraft_code TEXT NOT NULL UNIQUE,
+  aircraft_name TEXT NOT NULL,
+  capacity INTEGER NOT NULL,
+  registration TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS announcements (
