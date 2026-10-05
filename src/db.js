@@ -8,7 +8,24 @@ fs.mkdirSync(dataDir, { recursive: true });
 const db = new Database(path.join(dataDir, "bot.db"));
 db.pragma("journal_mode = WAL");
 
-db.exec(`
+function tableExists(name) {
+  const row = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
+  return Boolean(row);
+}
+
+function columnExists(tableName, columnName) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  return columns.some(column => column.name === columnName);
+}
+
+function addColumnIfMissing(tableName, columnDefinition) {
+  const columnName = columnDefinition.trim().split(/\s+/)[0];
+  if (!columnExists(tableName, columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnDefinition};`);
+  }
+}
+
+const schema = `
 CREATE TABLE IF NOT EXISTS flights (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   flight_number TEXT NOT NULL UNIQUE,
@@ -16,112 +33,47 @@ CREATE TABLE IF NOT EXISTS flights (
   destination TEXT NOT NULL,
   departure_iso TEXT,
   arrival_iso TEXT,
+  scheduled_arrival_time_iso TEXT,
   aircraft TEXT,
   gate TEXT,
   status TEXT NOT NULL DEFAULT 'Scheduled',
   delay_minutes INTEGER NOT NULL DEFAULT 0,
   checkin_open INTEGER NOT NULL DEFAULT 0,
   checkin_time_iso TEXT,
+  checkin_open_time_iso TEXT,
   boarding_time_iso TEXT,
   final_call_time_iso TEXT,
+  actual_departure_iso TEXT,
+  actual_arrival_iso TEXT,
+  automation_enabled INTEGER NOT NULL DEFAULT 1,
+  last_automation_status TEXT,
   event_url TEXT,
+  announcement_channel_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS passengers (
+CREATE TABLE IF NOT EXISTS flight_automation_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   flight_id INTEGER NOT NULL,
-  user_id TEXT NOT NULL,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL,
-  seat TEXT,
-  boarded INTEGER NOT NULL DEFAULT 0,
-  checkin_time_iso TEXT,
-  boarding_pass_code TEXT,
+  event_name TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(flight_id, user_id)
+  UNIQUE(flight_id, event_name)
 );
+`;
 
-CREATE TABLE IF NOT EXISTS checkins (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  flight_id INTEGER NOT NULL,
-  user_id TEXT NOT NULL,
-  seat TEXT,
-  boarded INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(flight_id, user_id)
-);
+db.exec(schema);
 
-CREATE TABLE IF NOT EXISTS crew_assignments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  flight_id INTEGER NOT NULL,
-  user_id TEXT NOT NULL,
-  role_name TEXT NOT NULL,
-  crew_checked_in INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(flight_id, user_id)
-);
-
-CREATE TABLE IF NOT EXISTS warnings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT NOT NULL,
-  moderator_id TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS staff_profiles (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL,
-  rank INTEGER NOT NULL DEFAULT 1,
-  status TEXT NOT NULL DEFAULT 'Active',
-  loa_start_iso TEXT,
-  loa_end_iso TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS aircraft (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  aircraft_code TEXT NOT NULL UNIQUE,
-  aircraft_name TEXT NOT NULL,
-  capacity INTEGER NOT NULL,
-  registration TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS announcements (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  channel_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  author_id TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS polls (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  channel_id TEXT NOT NULL,
-  message_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  creator_id TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS tickets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT NOT NULL,
-  type TEXT NOT NULL,
-  subject TEXT NOT NULL,
-  description TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Open',
-  assignee_id TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-`);
+if (tableExists("flights")) {
+  addColumnIfMissing("flights", "scheduled_arrival_time_iso TEXT");
+  addColumnIfMissing("flights", "checkin_open_time_iso TEXT");
+  addColumnIfMissing("flights", "boarding_time_iso TEXT");
+  addColumnIfMissing("flights", "final_call_time_iso TEXT");
+  addColumnIfMissing("flights", "actual_departure_iso TEXT");
+  addColumnIfMissing("flights", "actual_arrival_iso TEXT");
+  addColumnIfMissing("flights", "automation_enabled INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing("flights", "last_automation_status TEXT");
+  addColumnIfMissing("flights", "announcement_channel_id TEXT");
+}
 
 module.exports = db;

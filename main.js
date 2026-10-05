@@ -2,6 +2,8 @@ require("dotenv").config();
 const { Client, Collection, GatewayIntentBits, REST, Routes, ActivityType } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
+const { startFlightAutomation } = require("./src/flightAutomation");
+const { handleControlPanelAction } = require("./src/flightControlPanel");
 
 const token = process.env.DISCORD_BOT_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
@@ -40,6 +42,7 @@ for (const file of commandFiles) {
 
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
+  startFlightAutomation(client);
 
   const rest = new REST({ version: "10" }).setToken(token);
 
@@ -57,21 +60,27 @@ client.once("ready", async () => {
 });
 
 client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+  if (interaction.isChatInputCommand()) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
 
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(error);
-    const payload = { content: "Something went wrong while running that command.", ephemeral: true };
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp(payload).catch(() => {});
-    } else {
-      await interaction.reply(payload).catch(() => {});
+    try {
+      await command.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      const payload = { content: "Something went wrong while running that command.", ephemeral: true };
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp(payload).catch(() => {});
+      } else {
+        await interaction.reply(payload).catch(() => {});
+      }
     }
+    return;
+  }
+
+  if (interaction.isButton()) {
+    const handled = await handleControlPanelAction(interaction, client);
+    if (handled) return;
   }
 });
 
